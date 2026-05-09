@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+keys/
+Transmitted_Data.json
+Received_Message.txt

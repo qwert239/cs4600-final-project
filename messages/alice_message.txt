@@ -1,0 +1,5 @@
+Hello Bob,
+
+This message was encrypted with AES, protected with HMAC-SHA256, and delivered through a local transmission file.
+
+Alice
