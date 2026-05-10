@@ -19,6 +19,7 @@ Then open http://localhost:5000 in your browser.
 """
 
 import base64
+import hashlib
 import json
 import os
 import threading
@@ -75,13 +76,19 @@ def api_genkeys():
         genkeys("alice")
         genkeys("bob")
 
-        # Read back the public keys to show in the UI
-        alice_pub = public_key_file("alice").read_text()
-        bob_pub   = public_key_file("bob").read_text()
+        # Compute a real SHA-256 fingerprint of each public key.
+        # Import the key, export raw DER bytes, hash them — same
+        # approach used by ssh-keygen -l. Because DER encodes the
+        # actual key modulus, two different RSA keys will always
+        # produce different fingerprints.
+        def key_fingerprint(path):
+            key    = RSA.import_key(path.read_bytes())
+            der    = key.export_key("DER")
+            digest = hashlib.sha256(der).digest()
+            return ":".join(f"{b:02x}" for b in digest)
 
-        # Extract just the first/last line as a visual fingerprint
-        alice_fp = alice_pub.split("\n")[1][:40] + "…"
-        bob_fp   = bob_pub.split("\n")[1][:40] + "…"
+        alice_fp = key_fingerprint(public_key_file("alice"))
+        bob_fp   = key_fingerprint(public_key_file("bob"))
 
         return jsonify({
             "ok": True,
@@ -301,13 +308,16 @@ if __name__ == "__main__":
     print("Starting Secure Comm visualizer at http://localhost:5000")
     print("Make sure you are in the cs4600-final-project directory.")
 
-    # explicitly use Firefox
-    firefox = webbrowser.get("firefox")
-
-    # wait 1 second so Flask starts first
+    # Open the default system browser after a 1-second delay so Flask
+    # has time to start before the browser tries to connect.
     threading.Timer(
         1.0,
-        lambda: firefox.open("http://127.0.0.1:5000")
+        lambda: webbrowser.open("http://127.0.0.1:5000")
     ).start()
+
+    # To use Firefox specifically instead, comment out the two lines
+    # above and uncomment these:
+    # firefox = webbrowser.get("firefox")
+    # threading.Timer(1.0, lambda: firefox.open("http://127.0.0.1:5000")).start()
 
     app.run(debug=False, port=5000)

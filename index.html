@@ -529,9 +529,16 @@ async function doGenkeys() {
     const r = await fetch(API + '/api/genkeys', { method: 'POST' });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
-    document.getElementById('alice-fp').textContent = d.alice_fingerprint;
+    // Show first 6 pairs of the SHA-256 fingerprint — enough to visually
+    // distinguish two keys. Real tools like ssh-keygen show the full 32 pairs
+    // but that overflows a UI field. First 6 = 12 hex chars, still unique.
+    function shortFp(fp) {
+      const pairs = fp.split(':');
+      return 'SHA256:' + pairs.slice(0,8).join(':') + '…';
+    }
+    document.getElementById('alice-fp').textContent = shortFp(d.alice_fingerprint);
     document.getElementById('alice-fp').classList.remove('empty');
-    document.getElementById('bob-fp').textContent   = d.bob_fingerprint;
+    document.getElementById('bob-fp').textContent   = shortFp(d.bob_fingerprint);
     document.getElementById('bob-fp').classList.remove('empty');
     markKeysFound();
   } catch(e) {
