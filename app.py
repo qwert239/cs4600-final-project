@@ -260,15 +260,26 @@ def api_receive():
         transmitted_mac = package["mac"]
         mac_ok = (recomputed_mac == transmitted_mac)
 
+        # if not mac_ok:
+        #     # Return the mismatch — decryption is NOT attempted.
+        #     # This is the real algorithmic detection: the HMAC math failed.
+        #     return jsonify({
+        #         "ok":              True,   # request succeeded; crypto failed
+        #         "mac_ok":          False,
+        #         "recomputed_mac":  recomputed_mac,
+        #         "transmitted_mac": transmitted_mac,
+        #         "error": "MAC verification FAILED. Message rejected — possible tampering detected.",
+        #     })
+
         if not mac_ok:
-            # Return the mismatch — decryption is NOT attempted.
-            # This is the real algorithmic detection: the HMAC math failed.
             return jsonify({
-                "ok":              True,   # request succeeded; crypto failed
-                "mac_ok":          False,
-                "recomputed_mac":  recomputed_mac,
-                "transmitted_mac": transmitted_mac,
-                "error": "MAC verification FAILED. Message rejected — possible tampering detected.",
+            "ok":              True,
+            "mac_ok":          False,
+            "recomputed_mac":  recomputed_mac,
+            "transmitted_mac": transmitted_mac,
+            "aes_key_hex":     aes_key.hex(),   # add this
+            "mac_key_hex":     mac_key.hex(),   # add this
+            "error": "MAC verification FAILED. Message rejected — possible tampering detected.",
             })
 
         # ── Step 3: AES-256-CBC decrypt ───────────────────────────────────
