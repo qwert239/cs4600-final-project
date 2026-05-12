@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Secure Comm — Live Simulation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg:      #0a0c10;
+    --surface: #111318;
+    --border:  #1e2330;
+    --muted:   #2a3040;
+    --dim:     #4a5568;
+    --text:    #c8d0e0;
+    --bright:  #e8edf5;
+    --accent:  #4af0c4;
+    --purple:  #7b61ff;
+    --warn:    #ff6b6b;
+    --gold:    #f0c040;
+    --eve:     #ff8c42;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  .app { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ── Header ── */
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+  header h1 { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: var(--bright); }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--dim); margin-top: 4px; font-size: 11px; }
+
+  /* ── Server status bar ── */
+  .server-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--surface);
+    margin-bottom: 28px; font-size: 11px; color: var(--dim);
+  }
+  .server-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+  .server-bar.connected .server-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .server-bar.connected { border-color: rgba(74,240,196,0.2); }
+  .server-bar.error { border-color: rgba(255,107,107,0.3); }
+  .server-bar.error .server-dot { background: var(--warn); }
+
+  /* ── Main grid ── */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif; font-weight: 600; font-size: 13px;
+    color: var(--bright); display: flex; align-items: center; gap: 8px;
+  }
+  .party-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-alice { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .dot-bob   { background: var(--purple); box-shadow: 0 0 6px var(--purple); }
+  .dot-eve   { background: var(--eve);    box-shadow: 0 0 6px var(--eve); }
+  .card-body { padding: 18px; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 5px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.05em; cursor: pointer; border: none; transition: all 0.15s;
+  }
+  .btn-accent  { background: var(--accent);  color: #0a0c10; }
+  .btn-accent:hover { filter: brightness(1.1); }
+  .btn-purple  { background: var(--purple);  color: #fff; }
+  .btn-purple:hover { filter: brightness(1.2); }
+  .btn-ghost   { background: transparent; color: var(--dim); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--muted); color: var(--text); }
+  .btn-eve {
+    background: transparent; color: var(--dim);
+    border: 1px solid var(--border); transition: all 0.2s;
+  }
+  .btn-eve:hover { border-color: var(--eve); color: var(--eve); }
+  .btn-eve.active {
+    border-color: var(--eve); color: var(--eve);
+    background: rgba(255,140,66,0.08);
+    animation: eve-glow 2s ease infinite;
+  }
+  @keyframes eve-glow {
+    0%,100% { box-shadow: 0 0 6px rgba(255,140,66,0.1); }
+    50%      { box-shadow: 0 0 14px rgba(255,140,66,0.25); }
+  }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; filter: none !important; }
+  .eve-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); transition: all 0.2s; }
+  .btn-eve.active .eve-dot { background: var(--eve); box-shadow: 0 0 5px var(--eve); animation: blink 1s ease infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 5px; color: var(--bright); font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; padding: 12px; resize: vertical; min-height: 80px;
+    outline: none; transition: border-color 0.15s; margin-bottom: 12px;
+  }
+  textarea:focus { border-color: var(--accent); }
+
+  label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); display: block; margin-bottom: 6px; }
+
+  /* ── Data field ── */
+  .field { margin-bottom: 10px; }
+  .field-label {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--dim); margin-bottom: 4px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .field-tag {
+    font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: 700;
+  }
+  .tag-aes    { background: rgba(74,240,196,0.12);  color: var(--accent); }
+  .tag-rsa    { background: rgba(123,97,255,0.12);  color: var(--purple); }
+  .tag-hmac   { background: rgba(240,192,64,0.12);  color: var(--gold); }
+  .tag-plain  { background: rgba(200,208,224,0.08); color: var(--text); }
+  .tag-cipher { background: rgba(255,107,107,0.1);  color: var(--warn); }
+  .tag-eve    { background: rgba(255,140,66,0.15);  color: var(--eve); }
+  .tag-ok     { background: rgba(74,240,196,0.12);  color: var(--accent); }
+  .tag-fail   { background: rgba(255,107,107,0.15); color: var(--warn); }
+
+  .field-value {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 12px; font-size: 11px; word-break: break-all;
+    color: var(--text); min-height: 32px; line-height: 1.7; white-space: pre-wrap;
+  }
+  .field-value.empty { color: var(--muted); font-style: italic; }
+  .field-value.ok    { border-color: rgba(74,240,196,0.3); color: var(--accent); }
+  .field-value.fail  { border-color: rgba(255,107,107,0.3); color: var(--warn); }
+
+  .original { color: var(--accent); }
+  .tampered { color: var(--eve); text-decoration: underline wavy rgba(255,140,66,0.5); }
+
+  /* ── Channel file viewer ── */
+  .channel-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; margin-bottom: 24px;
+  }
+  .channel-body {
+    padding: 0; font-size: 11px; background: var(--bg);
+    max-height: 220px; overflow-y: auto;
+  }
+  pre {
+    padding: 16px; margin: 0; white-space: pre-wrap; word-break: break-all;
+    color: var(--text); line-height: 1.7;
+  }
+  .jk { color: var(--purple); }
+  .jv { color: var(--accent); }
+  .jn { color: var(--warn); }
+
+  /* ── Status banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 18px; border-radius: 6px; border: 1px solid var(--border);
+    margin-bottom: 14px; font-size: 12px; line-height: 1.6;
+  }
+  .banner.ok   { border-color: rgba(74,240,196,0.3);  background: rgba(74,240,196,0.04); }
+  .banner.fail { border-color: rgba(255,107,107,0.3); background: rgba(255,107,107,0.04); }
+  .banner.eve  { border-color: rgba(255,140,66,0.35); background: rgba(255,140,66,0.04); }
+  .banner.info { border-color: var(--border); background: var(--surface); color: var(--dim); }
+  .banner-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .ok   .banner-dot { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+  .fail .banner-dot { background: var(--warn);   box-shadow: 0 0 5px var(--warn); }
+  .eve  .banner-dot { background: var(--eve);    box-shadow: 0 0 5px var(--eve); animation: blink 1s ease infinite; }
+  .info .banner-dot { background: var(--dim); }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--muted); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Step counter ── */
+  .step-row {
+    display: flex; align-items: flex-start; gap: 14px;
+    margin-bottom: 16px; opacity: 0; transform: translateY(8px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .step-row.visible { opacity: 1; transform: none; }
+  .step-num-circle {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    border: 2px solid var(--border); color: var(--dim);
+    background: var(--surface); margin-top: 2px;
+  }
+  .step-row.done .step-num-circle { border-color: var(--accent); color: var(--accent); background: rgba(74,240,196,0.08); }
+  .step-row.fail .step-num-circle { border-color: var(--warn);   color: var(--warn);   background: rgba(255,107,107,0.08); }
+  .step-row.eve  .step-num-circle { border-color: var(--eve);    color: var(--eve);    background: rgba(255,140,66,0.08); }
+  .step-content { flex: 1; }
+  .step-title {
+    font-family: 'Syne', sans-serif; font-weight: 600; font-size: 13px;
+    color: var(--bright); margin-bottom: 8px;
+  }
+  .step-row.fail .step-title { color: var(--warn); }
+  .step-row.eve  .step-title { color: var(--eve); }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+  .tab {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--dim); cursor: pointer; transition: all 0.15s;
+  }
+  .tab:hover { border-color: var(--muted); color: var(--text); }
+  .tab.active { border-color: var(--accent); color: var(--accent); background: rgba(74,240,196,0.06); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>Secure Comm <span>//</span> Live Simulation</h1>
+    <p>RSA-2048 · AES-256-CBC · HMAC-SHA256 &nbsp;|&nbsp; All crypto runs in Python via Flask</p>
+  </header>
+
+  <!-- Server connection status -->
+  <div class="server-bar" id="server-bar">
+    <div class="server-dot"></div>
+    <span id="server-status-text">Connecting to Flask server at localhost:5000…</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('sim')">Simulation</button>
+    <button class="tab" onclick="switchTab('channel')">Channel File</button>
+    <button class="tab" onclick="switchTab('arch')">Architecture</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       SIMULATION TAB
+  ══════════════════════════════════════════════════ -->
+  <div id="panel-sim" class="panel active">
+
+    <!-- Key generation -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">🔑 Setup — Generate RSA Key Pairs</div>
+        <button class="btn btn-ghost" id="genkeys-btn" onclick="doGenkeys()">Generate Keys</button>
+      </div>
+      <div class="card-body">
+        <div id="keys-status" class="banner info">
+          <div class="banner-dot"></div>
+          <div>Run <strong>Generate Keys</strong> to create RSA-2048 key pairs for Alice and Bob. This only needs to happen once — keys are saved to the <code>keys/</code> directory.</div>
+        </div>
+        <div class="grid" style="margin-bottom:0">
+          <div class="field">
+            <div class="field-label">Alice — public key fingerprint <span class="field-tag tag-rsa">RSA-2048</span></div>
+            <div class="field-value empty" id="alice-fp">not generated</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Bob — public key fingerprint <span class="field-tag tag-rsa">RSA-2048</span></div>
+            <div class="field-value empty" id="bob-fp">not generated</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alice send + Eve toggle -->
+    <div class="grid">
+
+      <!-- Alice -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><div class="party-dot dot-alice"></div> Alice — Sender</div>
+        </div>
+        <div class="card-body">
+          <label>Plaintext message</label>
+          <textarea id="msg-input" placeholder="Type Alice's message…">Hello Bob,
+
+This message was encrypted with AES-256-CBC, authenticated with HMAC-SHA256, and transmitted via a local channel file.
+
+Alice</textarea>
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+            <button class="btn btn-accent" id="send-btn" onclick="doSend()">▶ Send</button>
+            <button class="btn btn-eve"    id="eve-btn"  onclick="toggleEve()">
+              <div class="eve-dot"></div> 👁 Eve
+            </button>
+          </div>
+          <div id="eve-banner" style="display:none" class="banner eve">
+            <div class="banner-dot"></div>
+            <div><strong style="color:var(--eve)">Eve is active.</strong> After Alice sends, Eve will intercept the channel file and corrupt the ciphertext before Bob reads it. Run Send to trigger the full sequence.</div>
+          </div>
+          <div id="send-steps"></div>
+        </div>
+      </div>
+
+      <!-- Bob -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><div class="party-dot dot-bob"></div> Bob — Receiver</div>
+          <button class="btn btn-purple" id="receive-btn" onclick="doReceive()" disabled>Receive</button>
+        </div>
+        <div class="card-body">
+          <div id="receive-steps">
+            <div class="banner info">
+              <div class="banner-dot"></div>
+              <div>Waiting for Alice to send a message.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       CHANNEL FILE TAB
+  ══════════════════════════════════════════════════ -->
+  <div id="panel-channel" class="panel">
+    <div class="channel-card">
+      <div class="card-header">
+        <div class="card-title">📄 Transmitted_Data.json — channel file</div>
+        <button class="btn btn-ghost" onclick="refreshChannel()">Refresh</button>
+      </div>
+      <div class="channel-body">
+        <pre id="channel-pre">No channel file yet. Run Send first.</pre>
+      </div>
+    </div>
+    <div class="banner info" id="channel-info">
+      <div class="banner-dot"></div>
+      <div>This file is written by Alice (send) and read by Bob (receive). It simulates the network channel. Eve intercepts it between those two steps.</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       ARCHITECTURE TAB
+  ══════════════════════════════════════════════════ -->
+  <div id="panel-arch" class="panel">
+    <svg width="100%" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg">
+      <rect width="900" height="500" fill="#0a0c10" rx="8"/>
+
+      <!-- Browser box -->
+      <rect x="20" y="20" width="200" height="460" rx="6" fill="#111318" stroke="#1e2330" stroke-width="1.5"/>
+      <rect x="20" y="20" width="200" height="34" rx="6" fill="#0d1919"/>
+      <rect x="20" y="42" width="200" height="12" fill="#0d1919"/>
+      <text x="38" y="41" font-family="Syne,sans-serif" font-size="11" font-weight="700" fill="#4af0c4">BROWSER</text>
+      <text x="38" y="58" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">index.html</text>
+      <rect x="36" y="70" width="168" height="22" rx="3" fill="#0a0c10" stroke="#1e2330"/>
+      <text x="46" y="85" font-family="JetBrains Mono,monospace" font-size="9" fill="#c8d0e0">Message textarea</text>
+      <rect x="36" y="100" width="168" height="22" rx="3" fill="#0a0c10" stroke="#1e2330"/>
+      <text x="46" y="115" font-family="JetBrains Mono,monospace" font-size="9" fill="#4af0c4">▶ Send button</text>
+      <rect x="36" y="130" width="168" height="22" rx="3" fill="#0a0c10" stroke="#1e2330"/>
+      <text x="46" y="145" font-family="JetBrains Mono,monospace" font-size="9" fill="#7b61ff">Receive button</text>
+      <rect x="36" y="160" width="168" height="22" rx="3" fill="#0a0c10" stroke="#1e2330"/>
+      <text x="46" y="175" font-family="JetBrains Mono,monospace" font-size="9" fill="#ff8c42">👁 Eve toggle</text>
+      <text x="120" y="215" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">renders JSON</text>
+      <text x="120" y="228" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">returned by Flask</text>
+      <text x="120" y="241" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">no crypto here</text>
+
+      <!-- HTTP arrows -->
+      <line x1="222" y1="111" x2="298" y2="111" stroke="#4af0c4" stroke-width="1.5" opacity="0.6"/>
+      <polygon points="295,107 303,111 295,115" fill="#4af0c4" opacity="0.6"/>
+      <text x="240" y="107" font-family="JetBrains Mono,monospace" font-size="8" fill="#4a5568">POST /api/send</text>
+      <line x1="302" y1="141" x2="224" y2="141" stroke="#7b61ff" stroke-width="1.5" opacity="0.5"/>
+      <polygon points="227,137 219,141 227,145" fill="#7b61ff" opacity="0.5"/>
+      <text x="228" y="137" font-family="JetBrains Mono,monospace" font-size="8" fill="#4a5568">JSON response</text>
+
+      <!-- Flask box -->
+      <rect x="300" y="20" width="200" height="460" rx="6" fill="#111318" stroke="#1e2330" stroke-width="1.5"/>
+      <rect x="300" y="20" width="200" height="34" rx="6" fill="#100d1a"/>
+      <rect x="300" y="42" width="200" height="12" fill="#100d1a"/>
+      <text x="318" y="41" font-family="Syne,sans-serif" font-size="11" font-weight="700" fill="#7b61ff">FLASK (app.py)</text>
+      <text x="318" y="58" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">python3 app.py</text>
+      <rect x="316" y="70" width="168" height="22" rx="3" fill="#0a0c10" stroke="rgba(123,97,255,0.3)"/>
+      <text x="326" y="85" font-family="JetBrains Mono,monospace" font-size="9" fill="#7b61ff">POST /api/genkeys</text>
+      <rect x="316" y="100" width="168" height="22" rx="3" fill="#0a0c10" stroke="rgba(123,97,255,0.3)"/>
+      <text x="326" y="115" font-family="JetBrains Mono,monospace" font-size="9" fill="#7b61ff">POST /api/send</text>
+      <rect x="316" y="130" width="168" height="22" rx="3" fill="#0a0c10" stroke="rgba(123,97,255,0.3)"/>
+      <text x="326" y="145" font-family="JetBrains Mono,monospace" font-size="9" fill="#ff8c42">POST /api/intercept</text>
+      <rect x="316" y="160" width="168" height="22" rx="3" fill="#0a0c10" stroke="rgba(123,97,255,0.3)"/>
+      <text x="326" y="175" font-family="JetBrains Mono,monospace" font-size="9" fill="#7b61ff">POST /api/receive</text>
+      <rect x="316" y="190" width="168" height="22" rx="3" fill="#0a0c10" stroke="rgba(123,97,255,0.3)"/>
+      <text x="326" y="205" font-family="JetBrains Mono,monospace" font-size="9" fill="#7b61ff">GET  /api/status</text>
+      <text x="400" y="240" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">calls functions in</text>
+      <text x="400" y="253" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">secure_comm.py</text>
+      <text x="400" y="266" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">returns results as JSON</text>
+
+      <!-- Flask → Python arrows -->
+      <line x1="502" y1="111" x2="578" y2="111" stroke="#4af0c4" stroke-width="1.5" opacity="0.5"/>
+      <polygon points="575,107 583,111 575,115" fill="#4af0c4" opacity="0.5"/>
+
+      <!-- Python / crypto box -->
+      <rect x="580" y="20" width="200" height="460" rx="6" fill="#111318" stroke="#1e2330" stroke-width="1.5"/>
+      <rect x="580" y="20" width="200" height="34" rx="6" fill="#0d1510"/>
+      <rect x="580" y="42" width="200" height="12" fill="#0d1510"/>
+      <text x="598" y="41" font-family="Syne,sans-serif" font-size="11" font-weight="700" fill="#4af0c4">secure_comm.py</text>
+      <text x="598" y="58" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">real crypto</text>
+      <rect x="596" y="70" width="168" height="22" rx="3" fill="rgba(74,240,196,0.06)" stroke="rgba(74,240,196,0.25)"/>
+      <text x="606" y="85" font-family="JetBrains Mono,monospace" font-size="9" fill="#4af0c4">AES-256-CBC encrypt</text>
+      <rect x="596" y="100" width="168" height="22" rx="3" fill="rgba(123,97,255,0.06)" stroke="rgba(123,97,255,0.25)"/>
+      <text x="606" y="115" font-family="JetBrains Mono,monospace" font-size="9" fill="#7b61ff">RSA-OAEP encrypt/decrypt</text>
+      <rect x="596" y="130" width="168" height="22" rx="3" fill="rgba(240,192,64,0.06)" stroke="rgba(240,192,64,0.25)"/>
+      <text x="606" y="145" font-family="JetBrains Mono,monospace" font-size="9" fill="#f0c040">HMAC-SHA256 sign/verify</text>
+      <rect x="596" y="160" width="168" height="22" rx="3" fill="rgba(255,140,66,0.06)" stroke="rgba(255,140,66,0.25)"/>
+      <text x="606" y="175" font-family="JetBrains Mono,monospace" font-size="9" fill="#ff8c42">Eve XOR corruption</text>
+      <rect x="596" y="200" width="168" height="44" rx="3" fill="#0a0c10" stroke="#1e2330"/>
+      <text x="606" y="218" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">Transmitted_Data.json</text>
+      <text x="606" y="232" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a5568">keys/ directory</text>
+    </svg>
+
+    <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;font-size:11px;color:var(--dim);line-height:1.8">
+      The browser sends HTTP requests to Flask. Flask calls the real Python crypto functions and returns the intermediate values as JSON. The browser only renders what it receives — it performs no cryptographic operations itself. Eve's tamper detection is purely algorithmic: Bob's HMAC recomputation over the received data fails mathematically, not because a flag was checked.
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+const API = 'http://localhost:5000';
+let eveActive = false;
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name) {
+  ['sim','channel','arch'].forEach((n,i) => {
+    document.querySelectorAll('.tab')[i].classList.toggle('active', n === name);
+    document.getElementById('panel-' + n).style.display = n === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'channel') refreshChannel();
+}
+
+// ── Server ping ────────────────────────────────────────────────────────────
+async function checkServer() {
+  const bar  = document.getElementById('server-bar');
+  const text = document.getElementById('server-status-text');
+  try {
+    const r = await fetch(API + '/api/status');
+    const d = await r.json();
+    bar.className  = 'server-bar connected';
+    text.textContent = '● Connected to Flask — localhost:5000  |  Keys: ' +
+      (d.keys_exist ? '✓ found' : '✗ not generated') +
+      '  |  Channel: ' + (d.channel_exists ? '✓ exists' : '✗ empty');
+    if (d.keys_exist) markKeysFound();
+    if (d.channel_exists) document.getElementById('receive-btn').disabled = false;
+  } catch {
+    bar.className  = 'server-bar error';
+    text.textContent = '✗ Cannot reach Flask server. Run: python3 app.py';
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function trunc(s, n=56) { return s && s.length > n ? s.slice(0,n) + '…' : s; }
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function field(labelText, value, tagClass, tagLabel, extraClass='') {
+  return `
+    <div class="field">
+      <div class="field-label">${esc(labelText)}
+        <span class="field-tag ${tagClass}">${tagLabel}</span>
+      </div>
+      <div class="field-value ${extraClass}">${esc(value)}</div>
+    </div>`;
+}
+
+function fieldHtml(labelText, html, tagClass, tagLabel) {
+  return `
+    <div class="field">
+      <div class="field-label">${esc(labelText)}
+        <span class="field-tag ${tagClass}">${tagLabel}</span>
+      </div>
+      <div class="field-value">${html}</div>
+    </div>`;
+}
+
+function stepRow(num, cls, title, bodyHtml) {
+  return `
+    <div class="step-row ${cls}" id="step-${num}">
+      <div class="step-num-circle">${num}</div>
+      <div class="step-content">
+        <div class="step-title">${title}</div>
+        ${bodyHtml}
+      </div>
+    </div>`;
+}
+
+function animateSteps(containerId) {
+  const rows = document.querySelectorAll(`#${containerId} .step-row`);
+  rows.forEach((r, i) => {
+    setTimeout(() => r.classList.add('visible'), i * 200);
+  });
+}
+
+function markKeysFound() {
+  document.getElementById('keys-status').className = 'banner ok';
+  document.getElementById('keys-status').innerHTML =
+    '<div class="banner-dot"></div><div><strong style="color:var(--accent)">Keys ready.</strong> RSA-2048 key pairs exist for Alice and Bob.</div>';
+}
+
+// ── Genkeys ────────────────────────────────────────────────────────────────
+async function doGenkeys() {
+  const btn = document.getElementById('genkeys-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Generating…';
+  try {
+    const r = await fetch(API + '/api/genkeys', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    // Show first 6 pairs of the SHA-256 fingerprint — enough to visually
+    // distinguish two keys. Real tools like ssh-keygen show the full 32 pairs
+    // but that overflows a UI field. First 6 = 12 hex chars, still unique.
+    function shortFp(fp) {
+      const pairs = fp.split(':');
+      return 'SHA256:' + pairs.slice(0,8).join(':') + '…';
+    }
+    document.getElementById('alice-fp').textContent = shortFp(d.alice_fingerprint);
+    document.getElementById('alice-fp').classList.remove('empty');
+    document.getElementById('bob-fp').textContent   = shortFp(d.bob_fingerprint);
+    document.getElementById('bob-fp').classList.remove('empty');
+    markKeysFound();
+  } catch(e) {
+    alert('genkeys failed: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Regenerate Keys';
+}
+
+// ── Eve toggle ─────────────────────────────────────────────────────────────
+function toggleEve() {
+  eveActive = !eveActive;
+  const btn    = document.getElementById('eve-btn');
+  const banner = document.getElementById('eve-banner');
+  btn.classList.toggle('active', eveActive);
+  btn.innerHTML = `<div class="eve-dot"></div> 👁 Eve ${eveActive ? '— ACTIVE' : ''}`;
+  banner.style.display = eveActive ? 'block' : 'none';
+}
+
+// ── Send ───────────────────────────────────────────────────────────────────
+async function doSend() {
+  const msg     = document.getElementById('msg-input').value.trim();
+  const btn     = document.getElementById('send-btn');
+  const steps   = document.getElementById('send-steps');
+
+  if (!msg) { alert('Enter a message first.'); return; }
+
+  btn.disabled  = true;
+  btn.innerHTML = '<div class="spinner"></div> Encrypting…';
+  steps.innerHTML = '';
+  document.getElementById('receive-steps').innerHTML =
+    '<div class="banner info"><div class="banner-dot"></div><div>Waiting for Bob to receive…</div></div>';
+  document.getElementById('receive-btn').disabled = true;
+
+  try {
+    // ── Call Flask /api/send — real AES+RSA+HMAC runs in Python ──────────
+    const r = await fetch(API + '/api/send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ message: msg }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const s = d.steps;
+
+    // Build step display from what Python returned
+    let html = '';
+    html += stepRow(1, 'done', 'Read plaintext',
+      field('alice_message.txt', s.plaintext, 'tag-plain', 'PLAINTEXT'));
+
+    html += stepRow(2, 'done', 'Generate session keys + IV',
+      field('aes_key (256-bit)', s.aes_key_hex, 'tag-aes', 'AES') +
+      field('mac_key (256-bit)', s.mac_key_hex, 'tag-hmac', 'HMAC') +
+      field('iv (128-bit)',      s.iv_hex,      'tag-plain', 'IV'));
+
+    html += stepRow(3, 'done', 'AES-256-CBC encrypt',
+      field('ciphertext (Base64)', trunc(s.ciphertext_b64), 'tag-cipher', 'CIPHERTEXT'));
+
+    html += stepRow(4, 'done', "RSA-OAEP encrypt key bundle with Bob's public key",
+      field('encrypted_key (Base64)', trunc(s.enc_key_b64), 'tag-rsa', 'RSA-OAEP'));
+
+    html += stepRow(5, 'done', 'Compute HMAC-SHA256 tag',
+      field('mac (Base64)', trunc(s.mac_b64), 'tag-hmac', 'HMAC-SHA256'));
+
+    html += stepRow(6, 'done', 'Write Transmitted_Data.json',
+      field('channel file written', 'Transmitted_Data.json', 'tag-plain', 'DISK'));
+
+    steps.innerHTML = html;
+    animateSteps('send-steps');
+
+    // ── If Eve is active, call /api/intercept immediately after send ──────
+    if (eveActive) {
+      await new Promise(r => setTimeout(r, steps.querySelectorAll('.step-row').length * 200 + 300));
+      await doIntercept(steps, s.ciphertext_b64);
+    }
+
+    document.getElementById('receive-btn').disabled = false;
+    refreshChannel();
+
+  } catch(e) {
+    steps.innerHTML = `<div class="banner fail"><div class="banner-dot"></div><div><strong style="color:var(--warn)">Send failed:</strong> ${esc(e.message)}</div></div>`;
+  }
+
+  btn.disabled  = false;
+  btn.innerHTML = '▶ Send';
+}
+
+// ── Intercept (Eve) ────────────────────────────────────────────────────────
+async function doIntercept(stepsContainer, originalCt) {
+  // Add Eve step to send pipeline
+  const eveDiv = document.createElement('div');
+  eveDiv.className = 'step-row eve';
+  eveDiv.id = 'step-eve';
+
+  const stepNum = stepsContainer.querySelectorAll('.step-row').length + 1;
+  eveDiv.innerHTML = `
+    <div class="step-num-circle">👁</div>
+    <div class="step-content">
+      <div class="step-title">Eve intercepts the channel file</div>
+      <div class="field">
+        <div class="field-label">status <span class="field-tag tag-eve">INTERCEPTING</span></div>
+        <div class="field-value" style="color:var(--eve)">Calling /api/intercept — Python will XOR 8 bytes of the ciphertext…</div>
+      </div>
+    </div>`;
+  stepsContainer.appendChild(eveDiv);
+  setTimeout(() => eveDiv.classList.add('visible'), 50);
+
+  try {
+    // ── Call Flask /api/intercept — Python does the actual byte flipping ──
+    const r = await fetch(API + '/api/intercept', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+
+    // Build a diff view: show original vs corrupted section
+    const diffHtml = buildDiff(originalCt, d.ciphertext_b64);
+
+    eveDiv.querySelector('.step-content').innerHTML = `
+      <div class="step-title">👁 Eve intercepts — bytes corrupted by Python</div>
+      ${fieldHtml('ciphertext — BEFORE', '<span class="original">' + esc(trunc(originalCt)) + '</span>', 'tag-cipher', 'ORIGINAL')}
+      ${fieldHtml('ciphertext — AFTER (XOR at byte offset ' + d.byte_offset + ')',
+        diffHtml, 'tag-eve', 'TAMPERED')}
+      ${field('original bytes (hex)', d.original_bytes_hex,  'tag-plain', 'BEFORE')}
+      ${field('corrupted bytes (hex)', d.corrupted_bytes_hex, 'tag-eve',   'AFTER')}
+      ${field('MAC (unchanged — Eve cannot recompute)', trunc(d.mac_b64), 'tag-hmac', 'INVALID')}`;
+
+    refreshChannel();
+  } catch(e) {
+    eveDiv.querySelector('.field-value').textContent = 'Intercept failed: ' + e.message;
+  }
+}
+
+// Build a visual diff of two base64 strings at the point they diverge
+function buildDiff(original, corrupted) {
+  let firstDiff = -1;
+  for (let i = 0; i < Math.min(original.length, corrupted.length); i++) {
+    if (original[i] !== corrupted[i]) { firstDiff = i; break; }
+  }
+  if (firstDiff < 0) return esc(trunc(corrupted));
+
+  const pre   = esc(original.slice(0, firstDiff));
+  const bad   = esc(corrupted.slice(firstDiff, firstDiff + 12));
+  const post  = esc(original.slice(firstDiff + 12, firstDiff + 60)) + '…';
+  return `<span class="original">${pre}</span><span class="tampered">${bad}</span><span class="original">${post}</span>`;
+}
+
+// ── Receive ────────────────────────────────────────────────────────────────
+async function doReceive() {
+  const btn   = document.getElementById('receive-btn');
+  const steps = document.getElementById('receive-steps');
+
+  btn.disabled  = true;
+  btn.innerHTML = '<div class="spinner"></div>';
+  steps.innerHTML = '';
+
+  try {
+    // ── Call Flask /api/receive — Python does RSA decrypt + HMAC verify ──
+    const r = await fetch(API + '/api/receive', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+
+    let html = '';
+
+    html += stepRow(1, 'done', 'Read Transmitted_Data.json',
+      '<div class="field"><div class="field-value">Channel file loaded from disk.</div></div>');
+
+    html += stepRow(2, 'done', "RSA-OAEP decrypt key bundle with Bob's private key",
+      field('recovered aes_key', d.aes_key_hex, 'tag-aes', 'AES') +
+      field('recovered mac_key', d.mac_key_hex, 'tag-hmac', 'HMAC'));
+
+    if (d.mac_ok) {
+      // MAC passed — show match and proceed to decryption
+      html += stepRow(3, 'done', 'HMAC-SHA256 verification PASSED ✓',
+        field('recomputed mac', trunc(d.recomputed_mac),  'tag-hmac', 'RECOMPUTED', 'ok') +
+        field('transmitted mac', trunc(d.transmitted_mac), 'tag-hmac', 'RECEIVED',   'ok'));
+
+      html += stepRow(4, 'done', 'AES-256-CBC decrypt + unpad',
+        field('recovered plaintext', d.plaintext, 'tag-plain', 'PLAINTEXT'));
+
+      html += stepRow(5, 'done', 'Write Received_Message.txt',
+        field('output file', d.plaintext, 'tag-plain', 'OUTPUT'));
+
+    } else {
+      // MAC failed — Python returned the mismatch, display it
+      html += stepRow(3, 'fail', 'HMAC-SHA256 verification FAILED ✗',
+        field('recomputed mac (over tampered data)', trunc(d.recomputed_mac),  'tag-hmac', 'RECOMPUTED', 'fail') +
+        field("transmitted mac (Alice's original)",  trunc(d.transmitted_mac), 'tag-hmac', 'RECEIVED') +
+        field('result', d.error, 'tag-fail', 'ABORTED', 'fail'));
+    }
+
+    steps.innerHTML = html;
+    animateSteps('receive-steps');
+
+    // Status banner above steps
+    const banner = document.createElement('div');
+    banner.className = 'banner ' + (d.mac_ok ? 'ok' : 'fail');
+    banner.innerHTML = `<div class="banner-dot"></div><div>` + (d.mac_ok
+      ? `<strong style="color:var(--accent)">MAC VERIFIED</strong> — message is authentic. Decryption succeeded.`
+      : `<strong style="color:var(--warn)">MAC FAILED</strong> — tampering detected by Python HMAC math. Decryption refused.`)
+      + `</div>`;
+    steps.prepend(banner);
+
+  } catch(e) {
+    steps.innerHTML = `<div class="banner fail"><div class="banner-dot"></div><div><strong style="color:var(--warn)">Receive error:</strong> ${esc(e.message)}</div></div>`;
+  }
+
+  btn.disabled  = false;
+  btn.innerHTML = 'Receive';
+}
+
+// ── Channel file viewer ────────────────────────────────────────────────────
+async function refreshChannel() {
+  try {
+    const r = await fetch(API + '/api/status');
+    const d = await r.json();
+    const pre = document.getElementById('channel-pre');
+    if (d.channel_file) {
+      // Syntax-highlight JSON keys and values
+      const highlighted = JSON.stringify(JSON.parse(d.channel_file), null, 2)
+        .replace(/"([^"]+)":/g, '<span class="jk">"$1"</span>:')
+        .replace(/: "([^"]+)"/g, ': <span class="jv">"$1"</span>');
+      pre.innerHTML = highlighted;
+    } else {
+      pre.textContent = 'No channel file yet. Run Send first.';
+    }
+  } catch {
+    document.getElementById('channel-pre').textContent = 'Cannot reach Flask server.';
+  }
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+checkServer();
+setInterval(checkServer, 8000);
+</script>
+</body>
+</html>
